@@ -11,7 +11,7 @@ load_dotenv(dotenv_path="ci/.env") # .envファイルをすべて読み込む
 SERVER_OWNER_ID = int(os.getenv("SERVER_OWNER_ID"))
 VERIFY_CHANNEL_ID = int(os.getenv("VERIFY_CHANNEL_ID"))
 VERIFIED_ROLE_ID  = int(os.getenv("VERIFIED_ROLE_ID"))
-LOG_CHANNEL_ID = int(os.getenv("AUTH_LOG_CHANNEL_ID"))
+LOG_CHANNEL_ID = int(os.getenv("JOIN_LOG_CHANNEL_ID"))
 
 # ユーザー -> 発行済みキーワード（再起動で消える想定）
 verification_keywords: dict[int, str] = {}

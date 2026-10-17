@@ -146,7 +146,7 @@ async def generate_rank_card(
     if guild_icon:
             img.paste(guild_icon, (255 - 3, 305 - 3), guild_icon)
 
-    draw.text((480, 120), user.display_name, font=font_big, fill=(0, 0, 0), anchor="lm")
+    draw.text((480, 120), user.display_name, font=font_big, fill=(30, 233, 182), anchor="lm")
     draw.text((1780, 250), f"{level}", font=font_big, fill=(30, 233, 182), anchor="mm")
 
     draw.text((670, 520), f"#{server_rank}", font=font_mid, fill=(30, 233, 182), anchor="mm")
@@ -166,7 +166,7 @@ async def generate_rank_card(
         fill=(30, 233, 182)
     )
 
-    draw.text((40, 580), f"EXP : {exp}/{next_exp}", font=font_small, fill=(0, 0, 0))
+    draw.text((40, 580), f"EXP : {exp}/{next_exp}", font=font_small, fill=(30, 233, 182))
 
     os.makedirs("/tmp", exist_ok=True)
     out = f"/tmp/rank_{user.id}.png"
@@ -221,7 +221,7 @@ class Rank(commands.Cog):
             new_exp = old_exp + gained_exp
             new_level = calc_level(new_exp)
 
-            notify_ch = guild.get_channel(RANK_NOTIFICATION_CHANNEL_ID)
+            notify_ch = message.guild.get_channel(RANK_NOTIFICATION_CHANNEL_ID)
 
             if notify_ch is None:
                 print(f"エラー: チャンネルID {RANK_NOTIFICATION_CHANNEL_ID} が見つかりません")
