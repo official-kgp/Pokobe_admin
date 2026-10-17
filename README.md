@@ -1,3 +1,9 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <heade>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./.github/style/mainpage.css">
+</heade>
 <div align="center">
     <h1>ぽこべぇ管理人Bot</h1>
     <img src="https://suiten-8ckghymktw.edgeone.dev/1000004028-removebg-preview.png" alt="Pokobe_admin Logo" width="200" height="200">
@@ -57,7 +63,7 @@ authn.pyやrules.pyの送信用コマンドです。送信ができればコマ�
 - TikTokのウェブフック(cogs/systems/tiktok.py)
 - メンシプ認証
 
-<div align="center">
+<footer class="main-footer">
   <p>©2025-2026 Pokobe_admin Powered by Suiten</p>
-</div>
-
+</footer>
+</html>
