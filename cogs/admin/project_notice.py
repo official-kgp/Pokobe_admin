@@ -47,7 +47,7 @@ class ProjectNoticeView(ui.LayoutView):
 
         self.add_item(
             ui.TextDisplay(
-                "# KGP ReNewal Project\n"
+                "## \u2003\u2003KGP ReNewal Project\n"
                 "## ──Project NEXUS──"
             )
         )
