@@ -338,20 +338,20 @@ class YouTubeNotice(commands.Cog):
     async def setforum(self, ctx, forum: discord.ForumChannel):
         self.q("""INSERT INTO guild_config(guild_id,forum_id) VALUES(?,?)
             ON CONFLICT(guild_id) DO UPDATE SET forum_id=excluded.forum_id""", (ctx.guild.id, forum.id))
-        await ctx.reply(f"通知先を {forum.mention} に設定しました。", ephemeral=True)
+        await ctx.reply(f"通知先を {forum.mention} に設定しました。", ephemeral=ctx.interaction is not None)
 
     @youtubectrl.command(name="add", description="監視チャンネルを追加")
     async def add(self, ctx, channel_id: str):
         cid = channel_id.strip()
         if not CHANNEL_RE.fullmatch(cid):
-            await ctx.reply("UCから始まるYouTubeチャンネルIDを指定してください。", ephemeral=True)
+            await ctx.reply("UCから始まるYouTubeチャンネルIDを指定してください。", ephemeral=ctx.interaction is not None)
             return
         if not self.q("SELECT 1 FROM guild_config WHERE guild_id=?", (ctx.guild.id,)).fetchone():
-            await ctx.reply("先に /youtubectrl setforum を実行してください。", ephemeral=True)
+            await ctx.reply("先に /youtubectrl setforum を実行してください。", ephemeral=ctx.interaction is not None)
             return
         self.q("INSERT OR IGNORE INTO tracked_channels VALUES(?,?)", (ctx.guild.id, cid))
         ok = await self.subscribe(cid)
-        await ctx.reply("監視対象に追加しました。" + (" WebSub購読リクエスト送信済み。" if ok else " WebSub未送信。環境変数を確認してください。"), ephemeral=True)
+        await ctx.reply("監視対象に追加しました。" + (" WebSub購読リクエスト送信済み。" if ok else " WebSub未送信。環境変数を確認してください。"), ephemeral=ctx.interaction is not None)
 
     @youtubectrl.command(name="remove", description="監視チャンネルを削除")
     async def remove(self, ctx, channel_id: str):
@@ -359,7 +359,7 @@ class YouTubeNotice(commands.Cog):
         self.q("DELETE FROM tracked_channels WHERE guild_id=? AND channel_id=?", (ctx.guild.id, cid))
         if not self.q("SELECT 1 FROM tracked_channels WHERE channel_id=? LIMIT 1", (cid,)).fetchone():
             await self.subscribe(cid, "unsubscribe")
-        await ctx.reply("監視対象から削除しました。", ephemeral=True)
+        await ctx.reply("監視対象から削除しました。", ephemeral=ctx.interaction is not None)
 
     @youtubectrl.command(name="list", description="監視設定を表示")
     async def list_channels(self, ctx):
@@ -368,14 +368,14 @@ class YouTubeNotice(commands.Cog):
         forum_text = f"<#{cfg['forum_id']}>" if cfg else "未設定"
         lines = [f"通知先: {forum_text}"]
         lines += [f"• {r['channel_id']}" for r in rows]
-        await ctx.reply("\\n".join(lines)[:1900], ephemeral=True)
+        await ctx.reply("\\n".join(lines)[:1900], ephemeral=ctx.interaction is not None)
 
     @youtubectrl.command(name="tags", description="フォーラムタグを設定（名前またはID）")
     async def tags(self, ctx, upcoming: str = "", live: str = "", video: str = ""):
         cfg = self.q("SELECT forum_id FROM guild_config WHERE guild_id=?", (ctx.guild.id,)).fetchone()
         forum = ctx.guild.get_channel(cfg["forum_id"]) if cfg else None
         if not isinstance(forum, discord.ForumChannel):
-            await ctx.reply("通知先フォーラムを先に設定してください。", ephemeral=True)
+            await ctx.reply("通知先フォーラムを先に設定してください。", ephemeral=ctx.interaction is not None)
             return
         def find(value):
             if not value.strip():
@@ -390,11 +390,11 @@ class YouTubeNotice(commands.Cog):
             return target if any(t.id == target for t in forum.available_tags) else -1
         values = [find(v) for v in (upcoming, live, video)]
         if -1 in values:
-            await ctx.reply("フォーラムに存在するタグ名またはIDを指定してください。", ephemeral=True)
+            await ctx.reply("フォーラムに存在するタグ名またはIDを指定してください。", ephemeral=ctx.interaction is not None)
             return
         self.q("UPDATE guild_config SET upcoming_tag_id=?,live_tag_id=?,video_tag_id=? WHERE guild_id=?",
                (*values, ctx.guild.id))
-        await ctx.reply("タグ設定を更新しました。", ephemeral=True)
+        await ctx.reply("タグ設定を更新しました。", ephemeral=ctx.interaction is not None)
 
 
 async def setup(bot: commands.Bot):
