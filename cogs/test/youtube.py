@@ -74,6 +74,8 @@ class YouTubeNotice(commands.Cog):
         CREATE TABLE IF NOT EXISTS deliveries(
             guild_id INTEGER NOT NULL, video_id TEXT NOT NULL, thread_id INTEGER NOT NULL,
             PRIMARY KEY(guild_id, video_id));
+        CREATE TABLE IF NOT EXISTS channel_cache(
+            channel_id TEXT PRIMARY KEY, uploads_playlist_id TEXT NOT NULL);
         """)
         self.db.commit()
         self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
@@ -84,9 +86,11 @@ class YouTubeNotice(commands.Cog):
         await self.runner.setup()
         await web.TCPSite(self.runner, HOST, PORT).start()
         self.renew.start()
+        self.reconcile.start()
 
     async def cog_unload(self):
         self.renew.cancel()
+        self.reconcile.cancel()
         if self.runner:
             await self.runner.cleanup()
         if self.session and not self.session.closed:
@@ -187,10 +191,13 @@ class YouTubeNotice(commands.Cog):
         }
 
     async def process(self, vid, cid, feed_title):
+        item = await self.fetch_video(vid)
+        if item and item["channel_id"] == cid:
+            await self.process_item(item)
+
+    async def process_item(self, item):
         async with self.lock:
-            item = await self.fetch_video(vid)
-            if not item or item["channel_id"] != cid:
-                return
+            vid, cid = item["id"], item["channel_id"]
             previous = self.q("SELECT status FROM videos WHERE video_id=?", (vid,)).fetchone()
             old = previous["status"] if previous else None
             self.q("""INSERT INTO videos VALUES(?,?,?,?,?,?)
@@ -207,6 +214,79 @@ class YouTubeNotice(commands.Cog):
                         await self.update_live(cfg, existing["thread_id"], item)
                 else:
                     await self.create_thread(cfg, item)
+
+    async def get_uploads_playlist(self, cid):
+        cached = self.q("SELECT uploads_playlist_id FROM channel_cache WHERE channel_id=?", (cid,)).fetchone()
+        if cached:
+            return cached["uploads_playlist_id"]
+        if not API_KEY or not self.session:
+            return None
+        params = {"part": "contentDetails", "id": cid, "key": API_KEY}
+        async with self.session.get("https://www.googleapis.com/youtube/v3/channels", params=params) as r:
+            if r.status != 200:
+                log.warning("channels.list returned HTTP %s", r.status)
+                return None
+            data = await r.json()
+        items = data.get("items") or []
+        if not items:
+            return None
+        playlist = items[0].get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads")
+        if playlist:
+            self.q("INSERT OR REPLACE INTO channel_cache VALUES(?,?)", (cid, playlist))
+        return playlist
+
+    @tasks.loop(minutes=30)
+    async def reconcile(self):
+        """Catch up on missed feed pushes and recheck scheduled/live status."""
+        await self.bot.wait_until_ready()
+        if not API_KEY or not self.session:
+            return
+        channels = self.q("SELECT DISTINCT channel_id FROM tracked_channels").fetchall()
+        for row in channels:
+            cid = row["channel_id"]
+            try:
+                playlist = await self.get_uploads_playlist(cid)
+                if not playlist:
+                    continue
+                params = {"part": "contentDetails", "playlistId": playlist, "maxResults": 10, "key": API_KEY}
+                async with self.session.get("https://www.googleapis.com/youtube/v3/playlistItems", params=params) as r:
+                    if r.status != 200:
+                        log.warning("playlistItems.list returned HTTP %s", r.status)
+                        continue
+                    payload = await r.json()
+                ids = [
+                    item.get("contentDetails", {}).get("videoId")
+                    for item in payload.get("items", [])
+                    if item.get("contentDetails", {}).get("videoId")
+                ]
+                upcoming = self.q("SELECT video_id FROM videos WHERE channel_id=? AND status='upcoming'", (cid,)).fetchall()
+                ids = list(dict.fromkeys([*ids, *(x["video_id"] for x in upcoming)]))
+                for offset in range(0, len(ids), 50):
+                    batch = ids[offset:offset + 50]
+                    params = {"part": "snippet", "id": ",".join(batch), "key": API_KEY}
+                    async with self.session.get("https://www.googleapis.com/youtube/v3/videos", params=params) as r:
+                        if r.status != 200:
+                            log.warning("videos.list reconciliation returned HTTP %s", r.status)
+                            continue
+                        data = await r.json()
+                    for raw in data.get("items", []):
+                        snippet = raw.get("snippet", {})
+                        live = snippet.get("liveBroadcastContent", "none")
+                        item = {
+                            "id": raw.get("id"), "channel_id": snippet.get("channelId"),
+                            "title": snippet.get("title") or "タイトル未取得",
+                            "channel": snippet.get("channelTitle") or "YouTube",
+                            "status": live if live in ("upcoming", "live") else "video",
+                        }
+                        if item["channel_id"] == cid:
+                            await self.process_item(item)
+                await asyncio.sleep(0.25)
+            except Exception:
+                log.exception("YouTube reconciliation failed for %s", cid)
+
+    @reconcile.before_loop
+    async def before_reconcile(self):
+        await self.bot.wait_until_ready()
 
     async def create_thread(self, cfg, item):
         guild = self.bot.get_guild(cfg["guild_id"])
