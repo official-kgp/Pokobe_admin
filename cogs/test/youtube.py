@@ -285,7 +285,8 @@ class YouTubeNotice(commands.Cog):
     async def list_channels(self, ctx):
         cfg = self.q("SELECT forum_id FROM guild_config WHERE guild_id=?", (ctx.guild.id,)).fetchone()
         rows = self.q("SELECT channel_id FROM tracked_channels WHERE guild_id=?", (ctx.guild.id,)).fetchall()
-        lines = [f"通知先: {f'<#{cfg[\"forum_id\"]}>' if cfg else '未設定'}"]
+        forum_text = f"<#{cfg['forum_id']}>" if cfg else "未設定"
+        lines = [f"通知先: {forum_text}"]
         lines += [f"• {r['channel_id']}" for r in rows]
         await ctx.reply("\\n".join(lines)[:1900], ephemeral=True)
 
