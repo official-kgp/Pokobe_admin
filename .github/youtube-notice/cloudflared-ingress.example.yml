@@ -1,0 +1,6 @@
+# Merge this ingress entry into the existing home-web tunnel config.
+# Preserve the existing suiten.site and other hostname rules.
+ingress:
+  - hostname: y-api.suiten.site
+    service: http://127.0.0.1:8765
+  - service: http_status:404
